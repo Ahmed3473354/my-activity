@@ -1,4 +1,4 @@
-```javascript
+
 const admin = require("firebase-admin");
 
 // =====================================================
@@ -459,4 +459,4 @@ async function checkTasks() {
 // =====================================================
 
 checkTasks();
-```
+
