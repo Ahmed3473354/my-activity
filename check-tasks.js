@@ -1,5 +1,14 @@
+const { initializeApp, cert } =
+    require("firebase-admin/app");
 
-const admin = require("firebase-admin");
+const {
+    getFirestore,
+    FieldValue
+} = require("firebase-admin/firestore");
+
+const {
+    getMessaging
+} = require("firebase-admin/messaging");
 
 // =====================================================
 // قراءة Firebase Service Account
@@ -9,8 +18,9 @@ const serviceAccountRaw =
     process.env.FIREBASE_SERVICE_ACCOUNT;
 
 if (!serviceAccountRaw) {
+
     console.error(
-        "❌ FIREBASE_SERVICE_ACCOUNT غير موجود في GitHub Secrets"
+        "❌ FIREBASE_SERVICE_ACCOUNT غير موجود"
     );
 
     process.exit(1);
@@ -19,15 +29,17 @@ if (!serviceAccountRaw) {
 let serviceAccount;
 
 try {
-    serviceAccount = JSON.parse(
-        serviceAccountRaw
-    );
+
+    serviceAccount =
+        JSON.parse(
+            serviceAccountRaw
+        );
+
 } catch (error) {
+
     console.error(
         "❌ FIREBASE_SERVICE_ACCOUNT ليس JSON صحيح"
     );
-
-    console.error(error.message);
 
     process.exit(1);
 }
@@ -38,11 +50,11 @@ try {
 
 try {
 
-    admin.initializeApp({
+    initializeApp({
+
         credential:
-            admin.credential.cert(
-                serviceAccount
-            )
+            cert(serviceAccount)
+
     });
 
 } catch (error) {
@@ -56,15 +68,11 @@ try {
     process.exit(1);
 }
 
-// =====================================================
-// Firestore
-// =====================================================
-
 const db =
-    admin.firestore();
+    getFirestore();
 
 const messaging =
-    admin.messaging();
+    getMessaging();
 
 // =====================================================
 // إرسال الإشعار
@@ -75,7 +83,10 @@ async function sendNotification(
     task
 ) {
 
-    if (!tokens.length) {
+    if (
+        !tokens ||
+        tokens.length === 0
+    ) {
 
         console.log(
             "⚠️ لا توجد أجهزة مسجلة"
@@ -127,7 +138,7 @@ async function sendNotification(
         );
 
         // =============================================
-        // حذف Tokens غير الصالحة
+        // تنظيف Tokens غير الصالحة
         // =============================================
 
         if (
@@ -150,53 +161,54 @@ async function sendNotification(
                 ) {
 
                     if (
-                        !result.success
+                        result.success
                     ) {
 
-                        const errorCode =
-                            result.error?.code ||
-                            "";
+                        return;
+                    }
 
-                        console.log(
-                            "⚠️ Token فشل:",
-                            errorCode
-                        );
+                    const errorCode =
+                        result.error?.code ||
+                        "";
 
-                        if (
-                            errorCode.includes(
-                                "registration-token-not-registered"
-                            ) ||
-                            errorCode.includes(
-                                "invalid-registration-token"
-                            )
-                        ) {
+                    console.log(
+                        "⚠️ Token فشل:",
+                        errorCode
+                    );
 
-                            const badToken =
-                                tokens[index];
+                    if (
+                        errorCode.includes(
+                            "registration-token-not-registered"
+                        ) ||
+                        errorCode.includes(
+                            "invalid-registration-token"
+                        )
+                    ) {
 
-                            tokenSnapshot.forEach(
-                                function (
-                                    tokenDoc
+                        const badToken =
+                            tokens[index];
+
+                        tokenSnapshot.forEach(
+                            function (
+                                tokenDoc
+                            ) {
+
+                                const data =
+                                    tokenDoc.data();
+
+                                if (
+                                    data.token ===
+                                    badToken
                                 ) {
 
-                                    const data =
-                                        tokenDoc.data();
-
-                                    if (
-                                        data.token ===
-                                        badToken
-                                    ) {
-
-                                        deletePromises.push(
-                                            tokenDoc.ref.delete()
-                                        );
-
-                                    }
+                                    deletePromises.push(
+                                        tokenDoc.ref.delete()
+                                    );
 
                                 }
-                            );
 
-                        }
+                            }
+                        );
 
                     }
 
@@ -221,12 +233,14 @@ async function sendNotification(
     catch (error) {
 
         console.error(
-            "❌ خطأ أثناء إرسال الإشعار:",
-            error
+            "❌ خطأ أثناء إرسال الإشعار:"
         );
+
+        console.error(error);
 
         return false;
     }
+
 }
 
 // =====================================================
@@ -306,7 +320,7 @@ function getEgyptTime() {
 }
 
 // =====================================================
-// تحويل موعد المهمة
+// تحويل موعد المهمة إلى UTC
 // =====================================================
 
 function taskToDate(
@@ -321,18 +335,7 @@ function taskToDate(
         return null;
     }
 
-    const value =
-        `${task.date}T${task.time}:00`;
-
-    /*
-     * لا نضع +03:00 يدويًا.
-     * GitHub Actions يعمل بتوقيت UTC.
-     *
-     * لذلك نقارن باستخدام الوقت المصري
-     * بدل الاعتماد على Timezone الجهاز.
-     */
-
-    const parts =
+    const dateParts =
         String(
             task.date
         ).split("-");
@@ -343,7 +346,7 @@ function taskToDate(
         ).split(":");
 
     if (
-        parts.length !== 3 ||
+        dateParts.length !== 3 ||
         timeParts.length !== 2
     ) {
 
@@ -351,35 +354,51 @@ function taskToDate(
     }
 
     const year =
-        Number(parts[0]);
+        Number(
+            dateParts[0]
+        );
 
     const month =
-        Number(parts[1]);
+        Number(
+            dateParts[1]
+        );
 
     const day =
-        Number(parts[2]);
+        Number(
+            dateParts[2]
+        );
 
     const hour =
-        Number(timeParts[0]);
+        Number(
+            timeParts[0]
+        );
 
     const minute =
-        Number(timeParts[1]);
+        Number(
+            timeParts[1]
+        );
 
     if (
-        !Number.isFinite(year) ||
-        !Number.isFinite(month) ||
-        !Number.isFinite(day) ||
-        !Number.isFinite(hour) ||
-        !Number.isFinite(minute)
+        !Number.isInteger(year) ||
+        !Number.isInteger(month) ||
+        !Number.isInteger(day) ||
+        !Number.isInteger(hour) ||
+        !Number.isInteger(minute)
     ) {
 
         return null;
     }
 
     /*
-     * نحول وقت مصر إلى UTC.
+     * وقت مصر في الفترة الحالية UTC+3.
      *
-     * مصر في التوقيت الحالي UTC+3.
+     * مثال:
+     *
+     * 22:00 مصر
+     *
+     * تصبح:
+     *
+     * 19:00 UTC
      */
 
     return new Date(
@@ -419,9 +438,9 @@ async function getTokens() {
 
             if (
                 data &&
-                data.token &&
                 typeof data.token ===
-                    "string"
+                    "string" &&
+                data.token.length > 0
             ) {
 
                 tokens.push(
@@ -460,7 +479,7 @@ async function checkTasks() {
         );
 
         // =============================================
-        // الوقت المصري
+        // الوقت في مصر
         // =============================================
 
         const egyptTime =
@@ -478,7 +497,7 @@ async function checkTasks() {
             new Date();
 
         // =============================================
-        // المهام
+        // قراءة المهام
         // =============================================
 
         const snapshot =
@@ -493,7 +512,7 @@ async function checkTasks() {
         );
 
         // =============================================
-        // الأجهزة
+        // قراءة الأجهزة
         // =============================================
 
         const tokens =
@@ -535,7 +554,7 @@ async function checkTasks() {
             }
 
             // =========================================
-            // التاريخ والوقت
+            // التأكد من التاريخ والوقت
             // =========================================
 
             if (
@@ -551,7 +570,7 @@ async function checkTasks() {
             }
 
             // =========================================
-            // منع إرسال الإشعار مرة ثانية
+            // منع إرسال نفس المهمة مرة أخرى
             // =========================================
 
             if (
@@ -584,7 +603,7 @@ async function checkTasks() {
             }
 
             // =========================================
-            // الفرق
+            // حساب الفرق
             // =========================================
 
             const difference =
@@ -600,7 +619,7 @@ async function checkTasks() {
             );
 
             // =========================================
-            // المهمة في المستقبل
+            // المهمة مستقبلية
             // =========================================
 
             if (
@@ -615,7 +634,7 @@ async function checkTasks() {
             }
 
             // =========================================
-            // لو فات أكثر من 5 دقائق
+            // فات أكثر من 5 دقائق
             // =========================================
 
             if (
@@ -624,7 +643,7 @@ async function checkTasks() {
             ) {
 
                 console.log(
-                    "⌛ فات الموعد بأكثر من 5 دقائق"
+                    "⌛ فات موعد المهمة بأكثر من 5 دقائق"
                 );
 
                 continue;
@@ -656,9 +675,7 @@ async function checkTasks() {
             // تسجيل الإرسال
             // =========================================
 
-            if (
-                sent
-            ) {
+            if (sent) {
 
                 await taskDoc.ref.update({
 
@@ -666,22 +683,23 @@ async function checkTasks() {
                         true,
 
                     notificationSentAt:
-                        admin
-                            .firestore
-                            .FieldValue
-                            .serverTimestamp()
+                        FieldValue.serverTimestamp()
 
                 });
 
                 console.log(
-                    "✅ تم تسجيل الإشعار"
+                    "✅ تم تسجيل الإشعار:"
+                );
+
+                console.log(
+                    `📌 ${task.name}`
                 );
 
             }
             else {
 
                 console.log(
-                    "⚠️ لم يتم تسجيل المهمة كمُرسلة"
+                    "⚠️ لم يتم تسجيل المهمة كمُرسلة لأن الإرسال فشل"
                 );
 
             }
@@ -712,7 +730,6 @@ async function checkTasks() {
         );
 
         process.exit(1);
-
     }
 
 }
@@ -722,4 +739,3 @@ async function checkTasks() {
 // =====================================================
 
 checkTasks();
-
