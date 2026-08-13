@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>مهامي</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+
+<body>
+
+
+    <!-- ========================= -->
+    <!-- الهيدر -->
+    <!-- ========================= -->
+
+    <header class="top">
+
+        <h1>
+            📅 مهامي
+        </h1>
+
+        <p>
+            نظّم يومك ولا تنسَ مهامك
+        </p>
+
+    </header>
+
+
+
+    <!-- ========================= -->
+    <!-- الساعة الحالية -->
+    <!-- ========================= -->
+
+    <div class="live-clock">
+
+        <div id="currentTime">
+            00:00:00
+        </div>
+
+        <div id="currentDate">
+            ---
+        </div>
+
+    </div>
+
+
+
+    <!-- ========================= -->
+    <!-- المحتوى -->
+    <!-- ========================= -->
+
+    <main>
+
+
+        <!-- ========================= -->
+        <!-- الإحصائيات -->
+        <!-- ========================= -->
+
+        <section class="stats">
+
+
+            <div class="stat-card">
+
+                <strong id="totalTasks">
+                    0
+                </strong>
+
+                <span>
+                    كل المهام
+                </span>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <strong id="completedTasks">
+                    0
+                </strong>
+
+                <span>
+                    تم إنجازها
+                </span>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <strong id="remainingTasks">
+                    0
+                </strong>
+
+                <span>
+                    متبقية
+                </span>
+
+            </div>
+
+
+        </section>
+
+
+
+        <!-- ========================= -->
+        <!-- إضافة مهمة -->
+        <!-- ========================= -->
+
+        <button
+            id="openAddTask"
+            class="add-main">
+
+            ＋ إضافة مهمة
+
+        </button>
+
+
+
+        <!-- ========================= -->
+        <!-- البحث -->
+        <!-- ========================= -->
+
+        <div class="search-box">
+
+            <input
+                type="search"
+                id="searchInput"
+                placeholder="🔎 ابحث عن مهمة..."
+            >
+
+        </div>
+
+
+
+        <!-- ========================= -->
+        <!-- الفلاتر -->
+        <!-- ========================= -->
+
+        <section class="tools">
+
+
+            <button
+                class="filter active"
+                data-filter="all">
+
+                كل المهام
+
+            </button>
+
+
+            <button
+                class="filter"
+                data-filter="today">
+
+                اليوم
+
+            </button>
+
+
+            <button
+                class="filter"
+                data-filter="tomorrow">
+
+                غدًا
+
+            </button>
+
+
+            <button
+                class="filter"
+                data-filter="completed">
+
+                المكتملة
+
+            </button>
+
+
+        </section>
+
+
+
+        <!-- ========================= -->
+        <!-- عنوان القائمة -->
+        <!-- ========================= -->
+
+        <div class="list-header">
+
+            <h2>
+                📋 المهام
+            </h2>
+
+            <span id="dayCount">
+                0 مهمة
+            </span>
+
+        </div>
+
+
+
+        <!-- ========================= -->
+        <!-- قائمة المهام -->
+        <!-- ========================= -->
+
+        <section id="tasksList"></section>
+
+
+    </main>
+
+
+
+    <!-- ========================= -->
+    <!-- نافذة إضافة المهمة -->
+    <!-- ========================= -->
+
+    <div
+        id="taskModal"
+        class="modal">
+
+
+        <div class="modal-content">
+
+
+            <!-- ========================= -->
+            <!-- إغلاق -->
+            <!-- ========================= -->
+
+            <button
+                id="closeModal"
+                class="close">
+
+                ×
+
+            </button>
+
+
+
+            <h2>
+                ➕ إضافة مهمة
+            </h2>
+
+
+
+            <!-- ========================= -->
+            <!-- اسم المهمة -->
+            <!-- ========================= -->
+
+            <label>
+                📝 اسم المهمة
+            </label>
+
+            <input
+                type="text"
+                id="taskName"
+                placeholder="مثال: مذاكرة الرياضيات"
+            >
+
+
+
+            <!-- ========================= -->
+            <!-- التاريخ -->
+            <!-- ========================= -->
+
+            <label>
+                📅 التاريخ
+            </label>
+
+            <input
+                type="date"
+                id="taskDate"
+            >
+
+
+
+            <!-- ========================= -->
+            <!-- الوقت -->
+            <!-- ========================= -->
+
+            <label>
+                ⏰ وقت المهمة
+            </label>
+
+
+            <div class="time-input">
+
+
+                <!-- الساعة -->
+
+                <div>
+
+                    <label>
+                        🕐 الساعة
+                    </label>
+
+                    <select id="taskHour">
+
+                        <option value="">
+                            الساعة
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+
+                <!-- الدقائق -->
+
+                <div>
+
+                    <label>
+                        ⏱️ الدقائق
+                    </label>
+
+                    <select id="taskMinute">
+
+                        <option value="">
+                            الدقيقة
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+            </div>
+
+
+
+            <!-- ========================= -->
+            <!-- صوت المنبه -->
+            <!-- ========================= -->
+
+            <label>
+                🔔 صوت المنبه
+            </label>
+
+            <select id="alarmSound">
+
+
+                <option value="default">
+                    🔔 منبه عادي
+                </option>
+
+
+                <option value="soft">
+                    🎵 منبه هادئ
+                </option>
+
+
+                <option value="digital">
+                    ⏰ منبه رقمي
+                </option>
+
+
+            </select>
+
+
+
+            <!-- ========================= -->
+            <!-- الأولوية -->
+            <!-- ========================= -->
+
+            <label>
+                🎯 الأولوية
+            </label>
+
+            <select id="taskPriority">
+
+
+                <option value="high">
+                    🔴 مهمة جدًا
+                </option>
+
+
+                <option
+                    value="medium"
+                    selected>
+
+                    🟡 مهمة
+
+                </option>
+
+
+                <option value="low">
+                    🟢 عادية
+                </option>
+
+
+            </select>
+
+
+
+            <!-- ========================= -->
+            <!-- التكرار -->
+            <!-- ========================= -->
+
+            <label>
+                🔁 التكرار
+            </label>
+
+            <select id="taskRepeat">
+
+
+                <option value="none">
+                    لا تتكرر
+                </option>
+
+
+                <option value="daily">
+                    يوميًا
+                </option>
+
+
+                <option value="weekly">
+                    أسبوعيًا
+                </option>
+
+
+                <option value="monthly">
+                    شهريًا
+                </option>
+
+
+            </select>
+
+
+
+            <!-- ========================= -->
+            <!-- الملاحظات -->
+            <!-- ========================= -->
+
+            <label>
+                📝 ملاحظات
+            </label>
+
+            <textarea
+                id="taskNotes"
+                placeholder="ملاحظات إضافية..."
+            ></textarea>
+
+
+
+            <!-- ========================= -->
+            <!-- حفظ -->
+            <!-- ========================= -->
+
+            <button
+                id="addTask"
+                class="save-btn">
+
+                💾 حفظ المهمة
+
+            </button>
+
+
+        </div>
+
+    </div>
+<button
+    id="enableNotifications"
+    class="notification-button">
+
+    🔔 تفعيل المنبهات
+
+</button>
+
+
+    <!-- ========================= -->
+    <!-- JavaScript -->
+    <!-- ========================= -->
+
+   <script src="db.js"></script>
+<script type="module" src="./firebase.js"></script>
+
+<script src="./notifications.js"></script>
+
+<script type="module" src="./app.js"></script>
+
+</body>
+
+</html>

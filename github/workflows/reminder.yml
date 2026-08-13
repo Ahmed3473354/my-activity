@@ -1,0 +1,16 @@
+name: Task Reminders
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check-tasks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check tasks
+        run: |
+          echo "🔔 فحص المهام..."
+          date
