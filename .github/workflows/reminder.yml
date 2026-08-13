@@ -18,9 +18,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        working-directory: functions
-        run: npm install
+      - name: Install Firebase Admin
+        run: npm install firebase-admin
 
       - name: Check Firestore
         env:
