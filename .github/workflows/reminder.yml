@@ -11,6 +11,13 @@ jobs:
 
     steps:
       - name: Check tasks
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           echo "🔔 فحص المهام..."
-          date
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "✅ Firebase Secret موجود"
+          else
+            echo "❌ Firebase Secret غير موجود"
+            exit 1
+          fi
