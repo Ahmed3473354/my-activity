@@ -5,9 +5,34 @@
 // =====================================================
 
 import {
-    enablePushNotifications
+    app,
+    enablePushNotifications,
+    firestoreDB
 } from "./firebase.js";
 
+async function testFirestore() {
+    try {
+        const docRef = await addDoc(
+            collection(firestoreDB, "test"),
+            {
+                message: "Firestore works",
+                time: Date.now()
+            }
+        );
+
+        console.log("✅ Firestore يعمل:", docRef.id);
+
+    } catch (error) {
+        console.error("❌ Firestore:", error);
+    }
+}
+
+testFirestore();
+
+import {
+    collection,
+    addDoc
+} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 // =====================================================
 // IndexedDB
@@ -720,6 +745,14 @@ if (addTask) {
                 await putTask(
                     task
                 );
+
+                await addDoc(
+    collection(firestoreDB, "tasks"),
+    {
+        ...task,
+        createdAt: Date.now()
+    }
+);
 
                 tasks.push(
                     task

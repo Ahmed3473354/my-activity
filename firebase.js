@@ -7,6 +7,9 @@ import {
     getToken
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js";
 
+import {
+    getFirestore
+} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 // ================================
 // Firebase Config
@@ -36,6 +39,10 @@ const firebaseConfig = {
 
 const app =
     initializeApp(firebaseConfig);
+
+    const firestoreDB = getFirestore(app);
+
+console.log("✅ Firestore جاهز");
 
 
 // ================================
@@ -124,6 +131,6 @@ async function enablePushNotifications() {
 
 export {
     app,
-    messaging,
     enablePushNotifications
 };
+export { firestoreDB };
