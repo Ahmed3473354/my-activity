@@ -7,8 +7,12 @@ import {
     getToken
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-messaging.js";
 
+
+
 import {
-    getFirestore
+    getFirestore,
+    doc,
+    setDoc
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 
 // ================================
@@ -111,10 +115,20 @@ async function enablePushNotifications() {
 
         console.log("✅ FCM TOKEN:", token);
 
-        localStorage.setItem(
-            "fcmToken",
-            token
-        );
+      localStorage.setItem(
+    "fcmToken",
+    token
+);
+
+await setDoc(
+    doc(firestoreDB, "notificationTokens", token),
+    {
+        token: token,
+        createdAt: Date.now()
+    }
+);
+
+console.log("✅ تم حفظ FCM Token في Firestore");
 
         return token;
 
