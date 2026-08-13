@@ -2,7 +2,11 @@ name: Task Reminders
 
 on:
   schedule:
+<<<<<<< HEAD
     - cron: '*/1 * * * *'
+=======
+    - cron: "*/1 * * * *"
+>>>>>>> ab62cf7 (run reminders every minute)
   workflow_dispatch:
 
 jobs:
