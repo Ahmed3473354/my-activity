@@ -2,62 +2,220 @@
 const admin = require("firebase-admin");
 
 // =====================================================
-// Firebase Admin
+// قراءة Firebase Service Account
 // =====================================================
 
-const serviceAccount =
-    JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccountRaw =
+    process.env.FIREBASE_SERVICE_ACCOUNT;
 
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-});
+if (!serviceAccountRaw) {
+    console.error(
+        "❌ FIREBASE_SERVICE_ACCOUNT غير موجود في GitHub Secrets"
+    );
 
-const db = admin.firestore();
+    process.exit(1);
+}
 
+let serviceAccount;
+
+try {
+    serviceAccount = JSON.parse(
+        serviceAccountRaw
+    );
+} catch (error) {
+    console.error(
+        "❌ FIREBASE_SERVICE_ACCOUNT ليس JSON صحيح"
+    );
+
+    console.error(error.message);
+
+    process.exit(1);
+}
+
+// =====================================================
+// تشغيل Firebase Admin
+// =====================================================
+
+try {
+
+    admin.initializeApp({
+        credential:
+            admin.credential.cert(
+                serviceAccount
+            )
+    });
+
+} catch (error) {
+
+    console.error(
+        "❌ فشل تشغيل Firebase Admin"
+    );
+
+    console.error(error);
+
+    process.exit(1);
+}
+
+// =====================================================
+// Firestore
+// =====================================================
+
+const db =
+    admin.firestore();
+
+const messaging =
+    admin.messaging();
 
 // =====================================================
 // إرسال الإشعار
 // =====================================================
 
-async function sendNotification(tokens, task) {
+async function sendNotification(
+    tokens,
+    task
+) {
 
-    if (tokens.length === 0) {
+    if (!tokens.length) {
 
-        console.log("❌ لا توجد أجهزة مسجلة");
+        console.log(
+            "⚠️ لا توجد أجهزة مسجلة"
+        );
 
         return false;
     }
 
     const message = {
+
         tokens: tokens,
 
         data: {
-            title: "🔔 حان وقت المهمة",
-            body: task.name || "لديك مهمة الآن",
-            taskId: String(task.id || "")
+
+            title:
+                "🔔 حان وقت المهمة",
+
+            body:
+                String(
+                    task.name ||
+                    "لديك مهمة الآن"
+                ),
+
+            taskId:
+                String(
+                    task.id ||
+                    task.firestoreId ||
+                    ""
+                )
+
         }
+
     };
 
     try {
 
         const response =
-            await admin
-                .messaging()
-                .sendEachForMulticast(message);
+            await messaging
+                .sendEachForMulticast(
+                    message
+                );
 
         console.log(
-            "📨 تم إرسال " +
-            response.successCount +
-            " إشعار"
+            `📨 نجح إرسال ${response.successCount} إشعار`
         );
 
         console.log(
-            "❌ فشل إرسال " +
-            response.failureCount +
-            " إشعار"
+            `❌ فشل إرسال ${response.failureCount} إشعار`
         );
 
-        return response.successCount > 0;
+        // =============================================
+        // حذف Tokens غير الصالحة
+        // =============================================
+
+        if (
+            response.failureCount > 0
+        ) {
+
+            const tokenSnapshot =
+                await db
+                    .collection(
+                        "notificationTokens"
+                    )
+                    .get();
+
+            const deletePromises = [];
+
+            response.responses.forEach(
+                function (
+                    result,
+                    index
+                ) {
+
+                    if (
+                        !result.success
+                    ) {
+
+                        const errorCode =
+                            result.error?.code ||
+                            "";
+
+                        console.log(
+                            "⚠️ Token فشل:",
+                            errorCode
+                        );
+
+                        if (
+                            errorCode.includes(
+                                "registration-token-not-registered"
+                            ) ||
+                            errorCode.includes(
+                                "invalid-registration-token"
+                            )
+                        ) {
+
+                            const badToken =
+                                tokens[index];
+
+                            tokenSnapshot.forEach(
+                                function (
+                                    tokenDoc
+                                ) {
+
+                                    const data =
+                                        tokenDoc.data();
+
+                                    if (
+                                        data.token ===
+                                        badToken
+                                    ) {
+
+                                        deletePromises.push(
+                                            tokenDoc.ref.delete()
+                                        );
+
+                                    }
+
+                                }
+                            );
+
+                        }
+
+                    }
+
+                }
+            );
+
+            await Promise.all(
+                deletePromises
+            );
+
+            console.log(
+                `🧹 تم تنظيف ${deletePromises.length} Token غير صالح`
+            );
+
+        }
+
+        return (
+            response.successCount > 0
+        );
 
     }
     catch (error) {
@@ -71,139 +229,215 @@ async function sendNotification(tokens, task) {
     }
 }
 
-
 // =====================================================
-// الوقت الحالي في مصر
+// الحصول على الوقت في مصر
 // =====================================================
 
-function getEgyptNow() {
+function getEgyptTime() {
 
-    const now = new Date();
+    const now =
+        new Date();
 
     const parts =
         new Intl.DateTimeFormat(
             "en-CA",
             {
-                timeZone: "Africa/Cairo",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                hour12: false
+
+                timeZone:
+                    "Africa/Cairo",
+
+                year:
+                    "numeric",
+
+                month:
+                    "2-digit",
+
+                day:
+                    "2-digit",
+
+                hour:
+                    "2-digit",
+
+                minute:
+                    "2-digit",
+
+                hour12:
+                    false
+
             }
-        ).formatToParts(now);
+        ).formatToParts(
+            now
+        );
 
-    function get(type) {
+    function getPart(
+        type
+    ) {
 
-        const item =
+        const part =
             parts.find(
-                function (part) {
-                    return part.type === type;
+                function (
+                    item
+                ) {
+
+                    return (
+                        item.type ===
+                        type
+                    );
+
                 }
             );
 
-        return item
-            ? item.value
+        return part
+            ? part.value
             : "";
+
     }
 
     return {
-        year: get("year"),
-        month: get("month"),
-        day: get("day"),
-        hour: get("hour"),
-        minute: get("minute")
+
+        date:
+            `${getPart("year")}-${getPart("month")}-${getPart("day")}`,
+
+        time:
+            `${getPart("hour")}:${getPart("minute")}`
+
     };
+
 }
 
-
 // =====================================================
-// تحويل وقت المهمة إلى دقائق
+// تحويل موعد المهمة
 // =====================================================
 
-function getTaskTimeInMinutes(task) {
-
-    if (!task.date || !task.time) {
-        return null;
-    }
-
-    const now =
-        getEgyptNow();
-
-    const taskDate =
-        task.date.split("-");
-
-    const taskTime =
-        task.time.split(":");
+function taskToDate(
+    task
+) {
 
     if (
-        taskDate.length !== 3 ||
-        taskTime.length !== 2
+        !task.date ||
+        !task.time
     ) {
 
         return null;
     }
 
-    const taskYear =
-        Number(taskDate[0]);
+    const value =
+        `${task.date}T${task.time}:00`;
 
-    const taskMonth =
-        Number(taskDate[1]);
+    /*
+     * لا نضع +03:00 يدويًا.
+     * GitHub Actions يعمل بتوقيت UTC.
+     *
+     * لذلك نقارن باستخدام الوقت المصري
+     * بدل الاعتماد على Timezone الجهاز.
+     */
 
-    const taskDay =
-        Number(taskDate[2]);
+    const parts =
+        String(
+            task.date
+        ).split("-");
 
-    const taskHour =
-        Number(taskTime[0]);
+    const timeParts =
+        String(
+            task.time
+        ).split(":");
 
-    const taskMinute =
-        Number(taskTime[1]);
+    if (
+        parts.length !== 3 ||
+        timeParts.length !== 2
+    ) {
 
-    const currentYear =
-        Number(now.year);
+        return null;
+    }
 
-    const currentMonth =
-        Number(now.month);
+    const year =
+        Number(parts[0]);
 
-    const currentDay =
-        Number(now.day);
+    const month =
+        Number(parts[1]);
 
-    const currentHour =
-        Number(now.hour);
+    const day =
+        Number(parts[2]);
 
-    const currentMinute =
-        Number(now.minute);
+    const hour =
+        Number(timeParts[0]);
 
+    const minute =
+        Number(timeParts[1]);
 
-    const taskDateObject =
+    if (
+        !Number.isFinite(year) ||
+        !Number.isFinite(month) ||
+        !Number.isFinite(day) ||
+        !Number.isFinite(hour) ||
+        !Number.isFinite(minute)
+    ) {
+
+        return null;
+    }
+
+    /*
+     * نحول وقت مصر إلى UTC.
+     *
+     * مصر في التوقيت الحالي UTC+3.
+     */
+
+    return new Date(
         Date.UTC(
-            taskYear,
-            taskMonth - 1,
-            taskDay,
-            taskHour,
-            taskMinute
-        );
+            year,
+            month - 1,
+            day,
+            hour - 3,
+            minute
+        )
+    );
 
-    const currentDateObject =
-        Date.UTC(
-            currentYear,
-            currentMonth - 1,
-            currentDay,
-            currentHour,
-            currentMinute
-        );
-
-    return {
-        difference:
-            (
-                currentDateObject -
-                taskDateObject
-            ) / 60000
-    };
 }
 
+// =====================================================
+// قراءة Tokens
+// =====================================================
+
+async function getTokens() {
+
+    const snapshot =
+        await db
+            .collection(
+                "notificationTokens"
+            )
+            .get();
+
+    const tokens = [];
+
+    snapshot.forEach(
+        function (
+            tokenDoc
+        ) {
+
+            const data =
+                tokenDoc.data();
+
+            if (
+                data &&
+                data.token &&
+                typeof data.token ===
+                    "string"
+            ) {
+
+                tokens.push(
+                    data.token
+                );
+
+            }
+
+        }
+    );
+
+    return [
+        ...new Set(tokens)
+    ];
+
+}
 
 // =====================================================
 // فحص المهام
@@ -213,90 +447,77 @@ async function checkTasks() {
 
     try {
 
-        const egyptNow =
-            getEgyptNow();
-
         console.log(
-            "🕐 الوقت الحالي في مصر: " +
-            egyptNow.year +
-            "-" +
-            egyptNow.month +
-            "-" +
-            egyptNow.day +
-            " " +
-            egyptNow.hour +
-            ":" +
-            egyptNow.minute
+            "======================================"
         );
 
+        console.log(
+            "🚀 بدء فحص المهام"
+        );
+
+        console.log(
+            "======================================"
+        );
 
         // =============================================
-        // قراءة المهام
+        // الوقت المصري
+        // =============================================
+
+        const egyptTime =
+            getEgyptTime();
+
+        console.log(
+            `🕐 الوقت في مصر: ${egyptTime.date} ${egyptTime.time}`
+        );
+
+        // =============================================
+        // الوقت الحالي UTC
+        // =============================================
+
+        const now =
+            new Date();
+
+        // =============================================
+        // المهام
         // =============================================
 
         const snapshot =
             await db
-                .collection("tasks")
+                .collection(
+                    "tasks"
+                )
                 .get();
 
         console.log(
-            "📋 عدد المهام: " +
-            snapshot.size
+            `📋 عدد المهام: ${snapshot.size}`
         );
 
-
         // =============================================
-        // قراءة الأجهزة
+        // الأجهزة
         // =============================================
 
-        const tokenSnapshot =
-            await db
-                .collection("notificationTokens")
-                .get();
-
-        const tokens = [];
-
-        tokenSnapshot.forEach(
-            function (doc) {
-
-                const data =
-                    doc.data();
-
-                if (data.token) {
-
-                    tokens.push(
-                        data.token
-                    );
-                }
-            }
-        );
+        const tokens =
+            await getTokens();
 
         console.log(
-            "📱 عدد الأجهزة: " +
-            tokens.length
+            `📱 عدد الأجهزة: ${tokens.length}`
         );
-
 
         // =============================================
         // فحص المهام
         // =============================================
 
         for (
-            const doc of snapshot.docs
+            const taskDoc
+            of snapshot.docs
         ) {
 
             const task =
-                doc.data();
+                taskDoc.data();
 
             console.log(
-                "🔔 مهمة:",
-                task.name,
-                "|",
-                task.date,
-                "|",
-                task.time
+                `🔔 مهمة: ${task.name || "بدون اسم"} | ${task.date || "-"} | ${task.time || "-"}`
             );
-
 
             // =========================================
             // المهمة مكتملة
@@ -306,12 +527,15 @@ async function checkTasks() {
                 task.completed === true
             ) {
 
+                console.log(
+                    "✅ المهمة مكتملة"
+                );
+
                 continue;
             }
 
-
             // =========================================
-            // بيانات ناقصة
+            // التاريخ والوقت
             // =========================================
 
             if (
@@ -319,12 +543,15 @@ async function checkTasks() {
                 !task.time
             ) {
 
+                console.log(
+                    "⚠️ المهمة بدون تاريخ أو وقت"
+                );
+
                 continue;
             }
 
-
             // =========================================
-            // تم إرسالها من قبل
+            // منع إرسال الإشعار مرة ثانية
             // =========================================
 
             if (
@@ -332,71 +559,88 @@ async function checkTasks() {
             ) {
 
                 console.log(
-                    "⏭️ تم إرسال الإشعار من قبل:",
-                    task.name
+                    "⏭️ الإشعار أُرسل سابقًا"
                 );
 
                 continue;
             }
 
-
             // =========================================
-            // حساب الفرق
+            // تحويل موعد المهمة
             // =========================================
 
-            const result =
-                getTaskTimeInMinutes(task);
+            const taskDate =
+                taskToDate(
+                    task
+                );
 
-            if (!result) {
+            if (!taskDate) {
 
                 console.log(
-                    "⚠️ وقت المهمة غير صحيح:",
-                    task.name
+                    "❌ تاريخ المهمة غير صحيح"
                 );
 
                 continue;
             }
 
-            const difference =
-                result.difference;
+            // =========================================
+            // الفرق
+            // =========================================
 
+            const difference =
+                now.getTime() -
+                taskDate.getTime();
+
+            const minutes =
+                difference /
+                60000;
 
             console.log(
-                "⏱️ الفرق:",
-                difference.toFixed(2),
-                "دقيقة"
+                `⏱️ الفرق: ${minutes.toFixed(2)} دقيقة`
             );
-
 
             // =========================================
             // المهمة في المستقبل
             // =========================================
 
-            if (difference < 0) {
+            if (
+                difference < 0
+            ) {
+
+                console.log(
+                    "⏳ لم يحن موعد المهمة"
+                );
 
                 continue;
             }
 
-
             // =========================================
-            // المهمة أقدم من 5 دقائق
+            // لو فات أكثر من 5 دقائق
             // =========================================
 
-            if (difference > 5) {
+            if (
+                difference >
+                5 * 60 * 1000
+            ) {
+
+                console.log(
+                    "⌛ فات الموعد بأكثر من 5 دقائق"
+                );
 
                 continue;
             }
-
 
             // =========================================
             // حان وقت المهمة
             // =========================================
 
             console.log(
-                "🚨 حان وقت المهمة:",
-                task.name
+                "🚨 حان وقت المهمة!"
             );
 
+            console.log(
+                `📌 ${task.name}`
+            );
 
             // =========================================
             // إرسال الإشعار
@@ -408,51 +652,70 @@ async function checkTasks() {
                     task
                 );
 
-
             // =========================================
-            // تسجيل نجاح الإرسال
+            // تسجيل الإرسال
             // =========================================
 
-            if (sent) {
+            if (
+                sent
+            ) {
 
-                await doc.ref.update({
+                await taskDoc.ref.update({
 
                     notificationSent:
                         true,
 
                     notificationSentAt:
-                        admin.firestore
+                        admin
+                            .firestore
                             .FieldValue
                             .serverTimestamp()
 
                 });
 
                 console.log(
-                    "✅ تم تسجيل المهمة كمُرسلة:",
-                    task.name
+                    "✅ تم تسجيل الإشعار"
+                );
+
+            }
+            else {
+
+                console.log(
+                    "⚠️ لم يتم تسجيل المهمة كمُرسلة"
                 );
 
             }
 
         }
 
+        console.log(
+            "======================================"
+        );
 
         console.log(
             "✅ انتهى فحص المهام"
+        );
+
+        console.log(
+            "======================================"
         );
 
     }
     catch (error) {
 
         console.error(
-            "❌ خطأ:",
+            "❌ خطأ أثناء فحص المهام:"
+        );
+
+        console.error(
             error
         );
 
         process.exit(1);
-    }
-}
 
+    }
+
+}
 
 // =====================================================
 // تشغيل
